@@ -78,6 +78,7 @@ impl Cx{
         self.spawn_timer_thread(16, move ||{ 
             let mut app_to_studio = AppToStudioVec(Vec::new());
             while let Ok(msg) = rx_receiver.try_recv(){
+                println!("websocket got msg {:?}", msg);
                 match msg{
                     WebSocketThreadMsg::Open{socket_id, request, rx_sender}=>{
                         let socket = OsWebSocket::open(socket_id, request, rx_sender);

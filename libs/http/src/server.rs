@@ -63,6 +63,8 @@ pub fn start_http_server(
                 };
                 let http_server = http_server.clone();
                 connection_counter += 1;
+
+                println!("Connection {}", connection_counter);
                 let _read_thread = std::thread::spawn(move || {
                     
                     let headers = HttpServerHeaders::from_tcp_stream(&mut tcp_stream);
@@ -70,6 +72,7 @@ pub fn start_http_server(
                         return http_error_out(tcp_stream, 500);
                     }
                     let headers = headers.unwrap();
+                    println!("Headers {:?}", headers);
                     
                     if headers.sec_websocket_key.is_some() {
                         return handle_web_socket(http_server, tcp_stream, headers, connection_counter);
@@ -135,7 +138,7 @@ fn handle_web_socket(http_server: HttpServer, mut tcp_stream: TcpStream, headers
     let upgrade_response = ServerWebSocket::create_upgrade_response(headers.sec_websocket_key.as_ref().unwrap());
 
     write_bytes_to_tcp_stream_no_error(&mut tcp_stream, upgrade_response.as_bytes());
-    
+
     let mut write_tcp_stream = tcp_stream.try_clone().unwrap();
     let (tx_socket, rx_socket) = mpsc::channel::<Vec<u8 >> ();
     
@@ -147,6 +150,7 @@ fn handle_web_socket(http_server: HttpServer, mut tcp_stream: TcpStream, headers
                     if data.is_empty(){
                         break
                     }
+                    println!("Sending data {:?}", data.len());
                     let header = ServerWebSocketMessageHeader::from_len(data.len(), ServerWebSocketMessageFormat::Binary, false);
                     write_bytes_to_tcp_stream_no_error(&mut write_tcp_stream, header.as_slice());
                     write_bytes_to_tcp_stream_no_error(&mut write_tcp_stream, &data);
@@ -176,6 +180,7 @@ fn handle_web_socket(http_server: HttpServer, mut tcp_stream: TcpStream, headers
         let mut data = [0u8; 65535];
         match tcp_stream.read(&mut data) {
             Ok(n) => {
+                println!("Read {} bytes", n);
                 if n == 0 {
                     let _ = tcp_stream.shutdown(Shutdown::Both);
                     let _ = tx_socket.send(Vec::new());
@@ -212,8 +217,8 @@ fn handle_web_socket(http_server: HttpServer, mut tcp_stream: TcpStream, headers
                     }
                 });
             }
-            Err(_) => {
-                println!("Websocket closed");
+            Err(e) => {
+                println!("Websocket closed {:?}", e);
                 let _ = tcp_stream.shutdown(Shutdown::Both);
                 let _ = tx_socket.send(Vec::new());
                 break;
